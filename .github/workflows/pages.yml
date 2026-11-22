@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read   # deploy-pages looks up this run's artifact
   pages: write
   id-token: write
 
