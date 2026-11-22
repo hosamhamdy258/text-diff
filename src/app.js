@@ -133,6 +133,26 @@
     };
   });
 
+  function saveFile(name, text, type) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  // Offline copy: the built page is one self-contained file, so saving its own markup is enough.
+  // Hidden in the dev page (src/), which loads external css/js and would not work on its own.
+  const dl = $('download');
+  if (document.querySelector('script[src], link[rel=stylesheet]')) dl.hidden = true;
+  dl.onclick = () => {
+    const page = document.documentElement.cloneNode(true);
+    page.querySelectorAll('textarea').forEach(t => { t.textContent = ''; t.classList.remove('drop'); });
+    page.querySelector('#result').replaceChildren();
+    page.querySelector('#summary').textContent = '';
+    saveFile('text-diff.html', '<!doctype html>\n' + page.outerHTML, 'text/html');
+  };
+
   // drag & drop a file onto either box
   [aEl, bEl].forEach(t => {
     t.addEventListener('dragover', e => { e.preventDefault(); t.classList.add('drop'); });
