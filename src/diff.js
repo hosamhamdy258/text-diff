@@ -111,10 +111,56 @@ const TextDiff = (function () {
         rows.push({ type: 'insert', oldNo: null, newNo: j + 1, text: bl[j] }); j++;
       }
     }
+    addWords(rows, opts);
     return rows;
   }
 
-  return { splitLines, sortLines, diffLines };
+  // ---- word diff inside changed lines
+
+  const MAX_WORD_TOKENS = 10000;
+
+  // Runs of letters/digits/_, runs of whitespace, or single other characters (never split a code point).
+  function tokenize(s) {
+    return s.match(/[\p{L}\p{N}_]+|\s+|[^\p{L}\p{N}_\s]/gu) || [];
+  }
+
+  // Pair the i-th delete with the i-th insert of each change block and attach `words` to both.
+  function addWords(rows, opts) {
+    let r = 0;
+    while (r < rows.length) {
+      if (rows[r].type === 'equal') { r++; continue; }
+      const dels = [], ins = [];
+      for (; r < rows.length && rows[r].type !== 'equal'; r++) (rows[r].type === 'delete' ? dels : ins).push(rows[r]);
+      for (let p = 0; p < Math.min(dels.length, ins.length); p++) wordDiff(dels[p], ins[p], opts);
+    }
+  }
+
+  function wordDiff(del, ins, opts) {
+    const ta = tokenize(del.text), tb = tokenize(ins.text);
+    if (ta.length + tb.length > MAX_WORD_TOKENS) return;
+    const isWs = s => /^\s+$/.test(s);
+    const key = s => {
+      if (opts.ignoreWhitespace && isWs(s)) return ' ';
+      return opts.ignoreCase ? s.toLowerCase() : s;
+    };
+    const ops = myers(ta.map(key), tb.map(key));
+    const oldParts = [], newParts = [];
+    const add = (parts, type, text) => {
+      if (type !== 'equal' && opts.ignoreWhitespace && isWs(text)) type = 'equal';
+      const last = parts[parts.length - 1];
+      if (last && last.type === type) last.text += text; else parts.push({ type, text });
+    };
+    let i = 0, j = 0;
+    for (const op of ops) {
+      if (op === 'equal') { add(oldParts, 'equal', ta[i++]); add(newParts, 'equal', tb[j++]); }
+      else if (op === 'delete') add(oldParts, 'delete', ta[i++]);
+      else add(newParts, 'insert', tb[j++]);
+    }
+    del.words = oldParts;
+    ins.words = newParts;
+  }
+
+  return { splitLines, sortLines, diffLines, tokenize };
 })();
 
 if (typeof module !== 'undefined') module.exports = TextDiff;

@@ -34,8 +34,8 @@ t('one empty', () => eq(types(diffLines('', 'a\nb')), 'ii'));
 t('all different', () => eq(types(diffLines('a\nb', 'c\nd')), 'ddii'));
 t('change middle', () => eq(diffLines('a\nb\nc', 'a\nx\nc'), [
   { type: 'equal', oldNo: 1, newNo: 1, text: 'a' },
-  { type: 'delete', oldNo: 2, newNo: null, text: 'b' },
-  { type: 'insert', oldNo: null, newNo: 2, text: 'x' },
+  { type: 'delete', oldNo: 2, newNo: null, text: 'b', words: [{ type: 'delete', text: 'b' }] },
+  { type: 'insert', oldNo: null, newNo: 2, text: 'x', words: [{ type: 'insert', text: 'x' }] },
   { type: 'equal', oldNo: 3, newNo: 3, text: 'c' }]));
 t('insert start/end', () => eq(types(diffLines('b', 'a\nb\nc')), 'iei'));
 t('CRLF == LF', () => eq(types(diffLines('a\r\nb\r\n', 'a\nb')), 'ee'));
@@ -69,6 +69,46 @@ t('fuzz lines', () => {
     const edits = rows.filter(r => r.type !== 'equal').length;
     assert.strictEqual(edits, al.length + bl.length - 2 * lcs(al, bl), 'not minimal: ' + JSON.stringify([a, b]));
     assert.ok(!/i+d/.test(types(rows).split('e').join('|')), 'insert before delete: ' + JSON.stringify([a, b]));
+  }
+});
+
+// ---- word diff
+const { tokenize } = TextDiff;
+t('tokenize', () => eq(tokenize('DB_PORT=5432 ok'), ['DB_PORT', '=', '5432', ' ', 'ok']));
+t('tokenize unicode', () => eq(tokenize('مرحبا 🎉!'), ['مرحبا', ' ', '🎉', '!']));
+t('word pair', () => {
+  const r = diffLines('DB_PORT=5432', 'DB_PORT=6543');
+  eq(r[0].words, [{ type: 'equal', text: 'DB_PORT=' }, { type: 'delete', text: '5432' }]);
+  eq(r[1].words, [{ type: 'equal', text: 'DB_PORT=' }, { type: 'insert', text: '6543' }]);
+});
+t('pair by index, extras plain', () => {
+  const r = diffLines('a1\nb1', 'a2\nb2\nc2');
+  eq(types(r), 'ddiii');
+  eq(r.map(x => !!x.words), [true, true, true, true, false]);
+});
+t('word diff honours ignoreCase', () => {
+  const r = diffLines('Foo bar', 'foo baz', { ignoreCase: true });
+  eq(r[0].words.filter(w => w.type !== 'equal').map(w => w.text), ['bar']);
+});
+t('word diff honours ignoreWhitespace', () => {
+  const r = diffLines(' a  b c', 'a b d', { ignoreWhitespace: true });
+  eq(r[0].words.filter(w => w.type !== 'equal').map(w => w.text), ['c']);
+  eq(r[1].words.filter(w => w.type !== 'equal').map(w => w.text), ['d']);
+});
+t('giant line skips word diff', () => {
+  const r = diffLines('x '.repeat(6000), 'y '.repeat(6000));
+  eq(r.map(x => x.words), [undefined, undefined]);
+});
+t('fuzz words join to text', () => {
+  const rnd = mulberry32(3), pool = ['a', 'b', ' ', '=', '🎉', 'م', 'Ab'];
+  const gen = () => Array.from({ length: Math.floor(rnd() * 8) }, () => pool[Math.floor(rnd() * pool.length)]).join('');
+  for (let k = 0; k < 2000; k++) {
+    for (const r of diffLines(gen() + '\n' + gen(), gen() + '\n' + gen())) {
+      if (!r.words) continue;
+      eq(r.words.map(w => w.text).join(''), r.text);
+      const allowed = r.type === 'delete' ? 'delete' : 'insert';
+      assert.ok(r.words.every(w => w.type === 'equal' || w.type === allowed));
+    }
   }
 });
 
