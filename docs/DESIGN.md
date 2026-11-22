@@ -41,6 +41,7 @@ A small, standalone browser tool to compare two texts, fully offline. Sibling of
 | Merge: → / ← on each change's first row (split: middle gutter; unified: first column) replace that change block's lines in the other box (`changeBlocks` + `spliceLines` in `diff.js`, tested incl. a fuzz that merging until equal always converges). Applied with `insertText` (one Undo step); the drawn rows window is kept. The merged lines stay shown (highlighted, kept out of Hide unchanged via `collapse`'s `keep` option, shown even when no differences remain) with an Undo button per merge (on a row that is still a change, a compact ↶ sits between its arrows instead of replacing them). Undo puts back only that merge's lines (other merges keep their positions, shifted as line counts change); merges that overlap or touch in the same box are joined into one Undo. The list lasts until a box is edited by hand (typing, Sort, Clear, Open). ▼ / ▲ continue from the merged spot; Undo reselects the restored change | Owner's request; block-level like Meld/WinMerge, simplest predictable unit |
 | Line-by-line merge: a "Lines" / "Block" toggle between a multi-line change's arrows, plus a global "Merge by line" checkbox (off by default). Line pair i = i-th removed + i-th added line (same pairing as word highlights); a side without line i gets the other's line added after its own lines of the change, or loses its line i. Split state is kept by block start lines (shifted on merges/undos), and what is left of a change after a line merge stays split; reset on new text | Owner's request: take line 8 from one side and line 9 from the other. Per-block toggle keeps the screen clean; global for heavy line-level work |
 | One view, our way (no editor library): double-click a line in the result edits it in place (textarea; Enter / blur saves, Esc cancels, Shift+Enter new line); saved through the same path as merges (`writeLines`: `insertText`, Undo button, view kept). Unified: removed line → Original, others → Changed | Owner's choice over a full editable diff editor (CodeMirror 6 + @codemirror/merge was the library option, kept in reserve) |
+| Keyboard: the result is one Tab stop (roving tabindex on line cells); ↑ / ↓ move between lines, ← / → between sides, Enter / F2 edits. Clicking a result button while editing saves the line and shows "line saved, click again" instead of acting | The redraw after saving replaces the button; re-running the click could hit a different change |
 | Text boxes fold to their toolbars (with line count / file name) when you work in the result, or by the Show / Hide texts button; never while typing. A box is never left focused while hidden. Folded boxes stay focusable (visually hidden, not `display: none`) so `insertText` and Undo still work | The result gets the screen; editing stays reliable |
 | New text (or Ignore option) selects change 1 and scrolls only the result box to it | Owner's choice; the page itself never jumps while typing |
 | `setText` replaces only the differing part with `insertText`; replacements over 300 lines are assigned directly | insertText cost grows sharply with inserted size (2,000 lines ≈ 2.6 s); a partial replace is ~36 ms on 5k lines. Big Open/drop/Sort lose Ctrl/Cmd+Z for that step |
@@ -67,7 +68,13 @@ clears inputs and result, saves `text-diff.html`; hidden in `src/`.
 `npm test` → `test/diff.test.js`: hand-written cases (line endings, options, Unicode, word pairs,
 collapse, sort) + seeded fuzz (diff rebuilds both texts exactly and is minimal against a brute-force
 LCS; word parts join back to the line) + performance smoke (5k fully different and 20k-line inputs
-under 1 s). UI checked with headless Chrome at 1280, 390 and 340 px, light and dark.
+under 1 s).
+
+`npm run test:ui` → `test/ui.test.js` loads the real `src/index.html` in headless Chrome (no npm
+dependencies; skipped when no Chrome/Chromium is found, `CHROME=/path` picks one) and runs
+`test/ui-checks.js`: auto compare, merges both ways + Undo, line merges, a merge/undo fuzz that must
+restore both texts, inline and keyboard editing, row window and navigation, folding and offline copy,
+Save with CRLF. CI runs both. Layout was checked by screenshots at 1280, 390 and 340 px.
 
 ## Repo & deploy
 

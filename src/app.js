@@ -18,6 +18,7 @@
   // merge / Undo (mergedTexts = the texts right after the last one); editing a box clears it.
   let merges = [], mergedTexts = null;
   let splitBlocks = []; // blocks merged line by line: { o, n } = their old / new start line
+  let lastCell = null;    // { side, no } of the last focused line cell, kept as the result's Tab stop
   let pendingSplit = null; // after a line merge: { o, n, d, nn } region whose blocks stay split
 
   // Change counter: [ i ] of N, the box empty until the first jump.
@@ -112,10 +113,12 @@
     tr.append(no, el('td', 'mk ' + cls, MARK[r.type]), tx);
   }
 
-  // Mark a text cell as line `no` of a box, so double-click can edit it.
+  // Mark a text cell as line `no` of a box, so double-click (or Enter / F2 on it) can edit it.
+  // Cells are reached by keyboard through one Tab stop on the result plus the arrow keys.
   function editable(td, side, no) {
     td.dataset.side = side;
     td.dataset.no = no;
+    td.tabIndex = -1;
   }
 
   // Side-by-side lines: a skip item, or an [old, new] pair (either side may be empty).
@@ -223,6 +226,8 @@
     if (cur >= 0) curRow()?.classList.add('cur');
     if (scrollFirst) scrollResultTo(curRow());
     showPos();
+    const keep = lastCell && result.querySelector('td.tx[data-side="' + lastCell.side + '"][data-no="' + lastCell.no + '"]');
+    setTabStop(keep || curRow()?.querySelector('td.tx[data-side]') || result.querySelector('td.tx[data-side]'));
   }
 
   // Scroll only the result box (not the page) so a row is in view, a third from the top.
@@ -479,11 +484,15 @@
     applyMerge(target, text);
   }
 
-  // Double-click a line in the result to edit it there. Enter or clicking away saves it into its
-  // box, Esc cancels, Shift+Enter starts a new line.
+  // Double-click a line in the result (or Enter / F2 on it) to edit it there. Enter or clicking
+  // away saves it into its box, Esc cancels, Shift+Enter starts a new line.
+  let editing = null; // finish(save) of the open line editor → true when the box changed
   result.addEventListener('dblclick', e => {
     const td = e.target.closest('td.tx');
-    if (!td || !td.dataset.side || td.querySelector('textarea')) return;
+    if (td && td.dataset.side && !td.querySelector('textarea')) startEdit(td, false);
+  });
+
+  function startEdit(td, byKeyboard) {
     if (stale()) return;
     clearTimeout(timer); // a pending re-draw would throw the draft away
     getSelection().removeAllRanges();
@@ -496,25 +505,69 @@
     ed.setAttribute('aria-label', 'Edit line ' + (start + 1) + ' of ' + (target === aEl ? 'Original' : 'Changed'));
     const fit = () => { ed.style.height = 'auto'; ed.style.height = ed.scrollHeight + 'px'; };
     let done = false;
-    const finish = save => {
-      if (done) return;
+    const finish = (save, refocus) => {
+      if (done) return false;
       done = true;
-      const lines = ed.value.split(/\r\n|\n|\r/);
-      if (save && !(lines.length === 1 && lines[0] === line)) writeLines(target, start, [line], lines);
+      editing = null;
+      const lines = ed.value.split(/\r\n|\n|\r/), changed = save && !(lines.length === 1 && lines[0] === line);
+      if (changed) writeLines(target, start, [line], lines);
       else td.replaceChildren(...before);
+      if (refocus) focusCell(td.dataset.side, start + 1); // keyboard: back on the line
+      return changed;
     };
+    editing = finish;
     ed.onkeydown = ev => {
-      if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); ev.stopPropagation(); finish(true); }
-      else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+      if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); ev.stopPropagation(); finish(true, true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(false, true); }
+      else ev.stopPropagation(); // arrow keys move the caret, not the cell
     };
     ed.oninput = fit;
-    ed.onblur = () => finish(true);
+    ed.onblur = () => finish(true, false);
     td.replaceChildren(ed);
     fold(true);
     fit();
-    ed.focus();
+    ed.focus({ preventScroll: !byKeyboard });
     ed.setSelectionRange(line.length, line.length);
+  }
+
+  // Focus the text cell of line `no` on `side`, if it is drawn.
+  function focusCell(side, no) {
+    const td = result.querySelector('td.tx[data-side="' + side + '"][data-no="' + no + '"]');
+    if (td) { setTabStop(td); td.focus(); }
+  }
+
+  // The result has one Tab stop: the last focused line, else the current change, else line 1.
+  function setTabStop(td) {
+    result.querySelectorAll('td.tx[tabindex="0"]').forEach(c => { c.tabIndex = -1; });
+    if (td) td.tabIndex = 0;
+  }
+  result.addEventListener('focusin', e => {
+    if (e.target.matches?.('td.tx[data-side]')) { lastCell = { side: e.target.dataset.side, no: e.target.dataset.no }; setTabStop(e.target); }
   });
+
+  // Keyboard on a line: Enter / F2 edits it, ↑ / ↓ move between lines, ← / → between sides.
+  result.addEventListener('keydown', e => {
+    const td = e.target;
+    if (!td.matches?.('td.tx[data-side]')) return;
+    let to = null;
+    if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); startEdit(td, true); return; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const sel = view() === 'split' ? 'td.tx[data-side="' + td.dataset.side + '"]' : 'td.tx[data-side]';
+      for (let tr = td.parentElement; !to && (tr = e.key === 'ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling);) to = tr.querySelector(sel);
+    } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && view() === 'split') {
+      to = td.parentElement.querySelector('td.tx[data-side="' + (e.key === 'ArrowRight' ? 'new' : 'old') + '"]');
+    } else return;
+    e.preventDefault();
+    if (to) to.focus();
+  });
+
+  // A click on a result button while a line is being edited: save the line first. The redraw
+  // replaces the button, so the click itself can't go on safely (it could hit another change).
+  result.addEventListener('mousedown', e => {
+    if (!editing || !e.target.closest('button')) return;
+    e.preventDefault();
+    if (editing(true, false)) summary.textContent += ' · line saved, click again';
+  }, true);
 
   // Split blocks are keyed by their start lines; lines added/removed above them move those.
   // Opened sections are keyed by line numbers too (1-based, so "after start" is > start).

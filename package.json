@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "test": "node test/diff.test.js",
+    "test:ui": "node test/ui.test.js",
     "build": "node scripts/build.js"
   },
   "author": "Hossam Hamdy",

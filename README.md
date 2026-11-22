@@ -15,7 +15,7 @@ Open the [live page](https://hosamhamdy258.github.io/text-diff/), or click **⤓
 2. The result updates by itself shortly after you stop typing (click **Compare** or press `Ctrl/Cmd + Enter` to update at once).
 3. Switch between **Unified** and **Side by side**, and tick **Hide unchanged** to keep only the changes with 3 lines of context around each. Click a `⋯ N unchanged lines` bar to show or hide just that section.
 4. After each new compare, change 1 is selected and scrolled into view in the result. Use **▲** / **▼** to jump to the previous / next change (wraps around at either end), or type a number in the box beside them (`[2] of 5`) to go to that change.
-5. Edit in the result: double-click any line to edit it there. **Enter** (or clicking away) saves it into its box, **Esc** cancels, **Shift + Enter** adds a new line. In Unified view a removed line belongs to the Original and every other line to the Changed text. Each edit gets an **↶ Undo** button like a merge.
+5. Edit in the result: double-click any line to edit it there (or **Tab** into the result, move with the arrow keys, and press **Enter** / **F2**). **Enter** (or clicking away) saves it into its box, **Esc** cancels, **Shift + Enter** adds a new line. In Unified view a removed line belongs to the Original and every other line to the Changed text. Each edit gets an **↶ Undo** button like a merge.
 6. The text boxes fold down to their toolbars (Open / Sort / Clear / Save still there, with line counts) once you work in the result (edit, merge, Undo, ▲ / ▼), so the result gets the screen. **Show texts** / **Hide texts** toggles them.
 7. Merge: on each change, **→** copies the Original's lines over the Changed box, **←** copies the Changed lines over the Original box. A change of several lines also has a **Lines** button between the arrows: it gives each line its own arrows (the 1st removed line pairs with the 1st added line, and so on), so you can take line 8 from one side and line 9 from the other; **Block** switches back. Tick **Merge by line** to do this for every change. The view stays where it is: the merged lines stay visible (highlighted) with an **↶ Undo** button; every merge keeps its own Undo until you edit a box by hand, and **▼** continues with the next change. The box text is edited, so `Ctrl/Cmd + Z` in that box also undoes it.
 
@@ -53,11 +53,12 @@ src/
   diff.js         pure diff logic, shared by the page and the tests
   app.js          UI: buttons, files, rendering, offline copy
 scripts/build.js  inlines src/ into one file: dist/index.html
-test/             diff tests
+test/             diff tests + page tests (ui.test.js runs ui-checks.js in headless Chrome)
 ```
 
 ```bash
 npm test         # run the diff tests
+npm run test:ui  # page tests in headless Chrome (skipped if Chrome isn't installed)
 npm run build    # write dist/index.html (single self-contained file)
 ```
 
