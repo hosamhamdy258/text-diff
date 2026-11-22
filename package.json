@@ -1,0 +1,12 @@
+{
+  "name": "text-diff",
+  "version": "1.0.0",
+  "description": "Compare two texts. Single offline HTML file, no dependencies.",
+  "private": true,
+  "scripts": {
+    "test": "node test/diff.test.js",
+    "build": "node scripts/build.js"
+  },
+  "author": "Hossam Hamdy",
+  "license": "MIT"
+}
