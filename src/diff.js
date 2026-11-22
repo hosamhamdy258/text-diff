@@ -160,7 +160,30 @@ const TextDiff = (function () {
     ins.words = newParts;
   }
 
-  return { splitLines, sortLines, diffLines, tokenize };
+  // ---- hide unchanged
+
+  // Keep `context` unchanged rows around each change; replace longer unchanged runs with
+  // { type: 'skip', count }. No changes at all → [].
+  function collapse(rows, context = 3) {
+    if (!rows.some(r => r.type !== 'equal')) return [];
+    const out = [];
+    let r = 0;
+    while (r < rows.length) {
+      if (rows[r].type !== 'equal') { out.push(rows[r++]); continue; }
+      const start = r;
+      while (r < rows.length && rows[r].type === 'equal') r++;
+      const run = rows.slice(start, r);
+      const keepBefore = start === 0 ? 0 : context;          // after a change
+      const keepAfter = r === rows.length ? 0 : context;     // before a change
+      if (run.length <= keepBefore + keepAfter) { out.push(...run); continue; }
+      out.push(...run.slice(0, keepBefore));
+      out.push({ type: 'skip', count: run.length - keepBefore - keepAfter });
+      out.push(...run.slice(run.length - keepAfter));
+    }
+    return out;
+  }
+
+  return { splitLines, sortLines, diffLines, tokenize, collapse };
 })();
 
 if (typeof module !== 'undefined') module.exports = TextDiff;

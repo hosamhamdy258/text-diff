@@ -112,6 +112,21 @@ t('fuzz words join to text', () => {
   }
 });
 
+// ---- collapse
+const { collapse } = TextDiff;
+const lines = (n, f = i => 'l' + i) => Array.from({ length: n }, (_, i) => f(i + 1)).join('\n');
+const shape = rows => rows.map(r => r.type === 'skip' ? 's' + r.count : r.type[0]).join('');
+const change = (n, at) => diffLines(lines(n), lines(n, i => at.includes(i) ? 'X' + i : 'l' + i));
+t('collapse middle change', () => eq(shape(collapse(change(20, [10]))), 's6eeedieees7'));
+t('collapse change at first line', () => eq(shape(collapse(change(20, [1]))), 'dieees16'));
+t('collapse change at last line', () => eq(shape(collapse(change(20, [20]))), 's16eeedi'));
+t('collapse gap of 6 kept', () => eq(shape(collapse(change(14, [4, 11]))), 'eeedieeeeeedieee'));
+t('collapse gap of 7 → skip 1', () => eq(shape(collapse(change(15, [4, 12]))), 'eeedieees1eeedieee'));
+t('collapse short edges kept', () => eq(shape(collapse(change(3, [2]))), 'edie'));
+t('collapse no changes', () => eq(collapse(diffLines('a\nb', 'a\nb')), []));
+t('collapse empty', () => eq(collapse([]), []));
+t('collapse context param', () => eq(shape(collapse(change(9, [5]), 1)), 's3edies3'));
+
 // performance smoke
 const timed = fn => { const s = Date.now(); fn(); return Date.now() - s; };
 t('perf 5k fully different', () => {
