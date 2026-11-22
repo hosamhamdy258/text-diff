@@ -76,6 +76,14 @@ t('fuzz lines', () => {
 const { tokenize } = TextDiff;
 t('tokenize', () => eq(tokenize('DB_PORT=5432 ok'), ['DB_PORT', '=', '5432', ' ', 'ok']));
 t('tokenize unicode', () => eq(tokenize('مرحبا 🎉!'), ['مرحبا', ' ', '🎉', '!']));
+t('tokenize keeps combining marks in words', () => {
+  eq(tokenize('كَتَبَ ok'), ['كَتَبَ', ' ', 'ok']);
+  eq(tokenize('café!'), ['café', '!']);
+});
+t('word diff highlights whole word with diacritics', () => {
+  const r = diffLines('كَتَبَ', 'كَتِبَ');
+  eq(r[0].words, [{ type: 'delete', text: 'كَتَبَ' }]);
+});
 t('word pair', () => {
   const r = diffLines('DB_PORT=5432', 'DB_PORT=6543');
   eq(r[0].words, [{ type: 'equal', text: 'DB_PORT=' }, { type: 'delete', text: '5432' }]);
@@ -139,6 +147,26 @@ t('perf 20k with 50 edits', () => {
   for (let k = 0; k < 50; k++) B[Math.floor(rnd() * B.length)] = 'edit ' + k;
   const ms = timed(() => diffLines(A.join('\n'), B.join('\n'))); assert.ok(ms < 1000, ms + ' ms');
 });
+// Reordered content: shared lines in a different order. Must stay fast and still rebuild exactly.
+const reorderCases = () => {
+  const rnd = mulberry32(11);
+  const R = Array.from({ length: 20000 }, () => 'v' + Math.floor(rnd() * 1e9));
+  const blocks = Array.from({ length: 2000 }, (_, i) => Array.from({ length: 10 }, (_, j) => j ? '  x' + j : 'fn' + i));
+  const shuffled = blocks.slice().sort(() => rnd() - 0.5);
+  return [
+    ['20k vs sorted', R.join('\n'), sortLines(R.join('\n'))],
+    ['20k reversed', R.join('\n'), R.slice().reverse().join('\n')],
+    ['20k shuffled blocks', blocks.flat().join('\n'), shuffled.flat().join('\n')],
+  ];
+};
+for (const [name, a, b] of reorderCases()) {
+  t('perf ' + name, () => {
+    let rows; const ms = timed(() => { rows = diffLines(a, b); });
+    assert.ok(ms < 1000, ms + ' ms');
+    eq(rebuild(rows, 'old'), splitLines(a));
+    eq(rebuild(rows, 'new'), splitLines(b));
+  });
+}
 
 console.log(pass + ' passed' + (fail ? ', ' + fail + ' failed' : ''));
 process.exit(fail ? 1 : 0);

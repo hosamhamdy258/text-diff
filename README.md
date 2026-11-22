@@ -35,7 +35,7 @@ Changing an option or view updates the result for the texts you last compared; e
 | Sort order | plain character-code order: case-sensitive (`B` before `a`), not natural (`10` before `2`), empty lines first |
 | Very long changed lines (over 10,000 words) | shown as changed without word highlights |
 
-The diff is minimal (Myers algorithm): it shows the fewest added and removed lines that turn the original into the changed text.
+The diff is minimal (Myers algorithm): it shows the fewest added and removed lines that turn the original into the changed text. For very costly inputs (for example a large file compared with a reordered or sorted copy of itself) the search stops early to keep the page responsive; the result is then still exact but may show more removed/added lines than strictly needed.
 
 ## Development
 

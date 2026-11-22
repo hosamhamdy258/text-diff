@@ -23,10 +23,12 @@ A small, standalone browser tool to compare two texts, fully offline. Sibling of
 |---|---|
 | Separate project, not a tab in the converter | Owner's choice: host it on its own |
 | Hand-written Myers diff, linear-space middle snake; lines that only occur on one side are left out of the search | No libraries allowed; minimal diffs; fully different inputs stay fast |
+| Work budget (2·10⁷ steps per diff): when spent, unsearched ranges become removed + added | Reordered/sorted 20k-line inputs took 3–6 s; now ~0.3 s. Result stays exact, minimal only best-effort on such inputs |
+| View / Hide unchanged toggles reuse the last rows; only Compare or an Ignore option re-diffs | Toggles are instant on large inputs |
 | Line endings and a missing final newline are not differences | Users compare content, not editors' line endings |
 | Ignore whitespace = collapse runs to one space + trim; Ignore case = lowercase. Applied to lines and to word highlights | A whitespace/case-only difference is never highlighted when ignored |
 | Equal-by-option rows keep both texts (`newText`); side by side shows each side, unified shows the new | Displayed text is always the real text |
-| Word diff pairs the i-th removed with the i-th added line of each change block; skipped over 10,000 tokens | Simple, predictable; giant one-line files don't hang |
+| Tokens keep combining marks with their letters (`\p{M}`); word diff pairs the i-th removed with the i-th added line of each change block; skipped over 10,000 tokens | Simple, predictable; giant one-line files don't hang |
 | Hide unchanged keeps 3 lines of context; longer runs → `⋯ N unchanged lines` | Familiar from diff tools |
 | Sort is an in-place button per box, not a "sort before compare" option | Owner's choice: result always matches the boxes; Undo works |
 | Sort order = plain JS string order (case-sensitive, not natural) | Predictable, no locale differences |

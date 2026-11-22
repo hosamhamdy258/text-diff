@@ -17,18 +17,27 @@ const TextDiff = (function () {
 
   // ---- Myers diff (linear-space middle-snake divide and conquer, Myers 1986 §4b)
 
+  // Work budget per myers() call (inner-loop steps). Normal inputs never reach it. Reordered
+  // content (e.g. a file vs its sorted copy) can cost O(N·D); once the budget is spent, the
+  // ranges still unsearched are reported as removed + added: still exact, no longer minimal.
+  const MAX_WORK = 2e7;
+
   // Find the middle snake of A[a0..a1) vs B[b0..b1). Both ranges are non-empty and share no
-  // common prefix or suffix. Returns [x, y, u, v]: the snake runs from (x, y) to (u, v).
-  function middleSnake(A, a0, a1, B, b0, b1) {
+  // common prefix or suffix. Returns [x, y, u, v]: the snake runs from (x, y) to (u, v),
+  // or null when the work budget runs out.
+  function middleSnake(A, a0, a1, B, b0, b1, budget) {
     const N = a1 - a0, M = b1 - b0, delta = N - M, odd = (delta & 1) !== 0;
     const max = Math.ceil((N + M) / 2), off = max + 1;
     const vf = new Int32Array(2 * max + 3), vb = new Int32Array(2 * max + 3);
     for (let d = 0; d <= max; d++) {
+      budget.left -= 2 * d + 2;
+      if (budget.left < 0) return null;
       for (let k = -d; k <= d; k += 2) {
         let x = (k === -d || (k !== d && vf[off + k - 1] < vf[off + k + 1])) ? vf[off + k + 1] : vf[off + k - 1] + 1;
         let y = x - k;
         const xs = x, ys = y;
         while (x < N && y < M && A[a0 + x] === B[b0 + y]) { x++; y++; }
+        budget.left -= x - xs;
         vf[off + k] = x;
         const kb = delta - k;
         if (odd && kb >= -(d - 1) && kb <= d - 1 && x + vb[off + kb] >= N)
@@ -39,6 +48,7 @@ const TextDiff = (function () {
         let y = x - k;
         const xs = x, ys = y;
         while (x < N && y < M && A[a1 - 1 - x] === B[b1 - 1 - y]) { x++; y++; }
+        budget.left -= x - xs;
         vb[off + k] = x;
         const kf = delta - k;
         if (!odd && kf >= -d && kf <= d && x + vf[off + kf] >= N)
@@ -49,20 +59,21 @@ const TextDiff = (function () {
   }
 
   // Emit the index pairs (i, j) of a longest common subsequence of A[a0..a1) and B[b0..b1), in order.
-  function lcsPairs(A, a0, a1, B, b0, b1, emit) {
+  function lcsPairs(A, a0, a1, B, b0, b1, emit, budget) {
     while (a0 < a1 && b0 < b1 && A[a0] === B[b0]) emit(a0++, b0++);
     let s = 0;
     while (a1 > a0 && b1 > b0 && A[a1 - 1] === B[b1 - 1]) { a1--; b1--; s++; }
-    if (a0 < a1 && b0 < b1) {
-      const [x, y, u, v] = middleSnake(A, a0, a1, B, b0, b1);
-      lcsPairs(A, a0, x, B, b0, y, emit);
+    const snake = a0 < a1 && b0 < b1 && budget.left > 0 ? middleSnake(A, a0, a1, B, b0, b1, budget) : null;
+    if (snake) {
+      const [x, y, u, v] = snake;
+      lcsPairs(A, a0, x, B, b0, y, emit, budget);
       for (let i = 0; i < u - x; i++) emit(x + i, y + i);
-      lcsPairs(A, u, a1, B, v, b1, emit);
+      lcsPairs(A, u, a1, B, v, b1, emit, budget);
     }
     for (let i = 0; i < s; i++) emit(a1 + i, b1 + i);
   }
 
-  // Minimal edit script turning keys a into keys b: 'equal' | 'delete' | 'insert' per element.
+  // Edit script turning keys a into keys b (minimal unless the work budget runs out): 'equal' | 'delete' | 'insert' per element.
   // Within each block of changes all deletes come before all inserts.
   function myers(a, b) {
     const ids = new Map(), id = k => { if (!ids.has(k)) ids.set(k, ids.size); return ids.get(k); };
@@ -82,7 +93,7 @@ const TextDiff = (function () {
     };
     lcsPairs(fa, 0, fa.length, fb, 0, fb.length, (x, y) => {
       gap(ai[x], bi[y]); ops.push('equal'); i++; j++;
-    });
+    }, { left: MAX_WORK });
     gap(A.length, B.length);
     return ops;
   }
@@ -119,9 +130,10 @@ const TextDiff = (function () {
 
   const MAX_WORD_TOKENS = 10000;
 
-  // Runs of letters/digits/_, runs of whitespace, or single other characters (never split a code point).
+  // Runs of letters/marks/digits/_, runs of whitespace, or single other characters (never split a
+  // code point; combining marks such as Arabic harakat or accents stay with their letters).
   function tokenize(s) {
-    return s.match(/[\p{L}\p{N}_]+|\s+|[^\p{L}\p{N}_\s]/gu) || [];
+    return s.match(/[\p{L}\p{M}\p{N}_]+|\s+|[^\p{L}\p{M}\p{N}_\s]/gu) || [];
   }
 
   // Pair the i-th delete with the i-th insert of each change block and attach `words` to both.

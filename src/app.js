@@ -88,9 +88,18 @@
     return table;
   }
 
+  // Rows for the current snapshot + options; view and Hide unchanged toggles reuse them.
+  let cache = null;
+  function currentRows() {
+    const o = opts(), key = o.ignoreWhitespace + '|' + o.ignoreCase;
+    if (!cache || cache.snapshot !== snapshot || cache.key !== key)
+      cache = { snapshot, key, rows: TextDiff.diffLines(snapshot.a, snapshot.b, o) };
+    return cache.rows;
+  }
+
   function render() {
     if (!snapshot) return;
-    const rows = TextDiff.diffLines(snapshot.a, snapshot.b, opts());
+    const rows = currentRows();
     const added = rows.filter(r => r.type === 'insert').length;
     const removed = rows.filter(r => r.type === 'delete').length;
     const frag = document.createDocumentFragment();
