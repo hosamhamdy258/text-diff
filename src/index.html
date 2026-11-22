@@ -29,13 +29,14 @@
     </div>
   </header>
 
-  <main>
+  <main id="main">
     <section class="pane">
       <div class="bar">
-        <strong>Original</strong>
+        <strong>Original <span class="info" id="aInfo"></span></strong>
         <button data-open="aFile">Open</button>
         <button data-sort="a" title="Sort lines A→Z (Ctrl/Cmd+Z to undo)">Sort</button>
         <button data-clear="a">Clear</button>
+        <button data-save="a" title="Save this text as a file">Save</button>
         <input type="file" id="aFile">
       </div>
       <textarea id="a" spellcheck="false" aria-label="Original text" placeholder="Paste the original text here"></textarea>
@@ -43,10 +44,11 @@
 
     <section class="pane">
       <div class="bar">
-        <strong>Changed</strong>
+        <strong>Changed <span class="info" id="bInfo"></span></strong>
         <button data-open="bFile">Open</button>
         <button data-sort="b" title="Sort lines A→Z (Ctrl/Cmd+Z to undo)">Sort</button>
         <button data-clear="b">Clear</button>
+        <button data-save="b" title="Save this text as a file">Save</button>
         <input type="file" id="bFile">
       </div>
       <textarea id="b" spellcheck="false" aria-label="Changed text" placeholder="Paste the changed text here"></textarea>
@@ -54,12 +56,19 @@
   </main>
 
   <div class="controls">
-    <button class="primary" id="compare" title="Ctrl/Cmd+Enter in either box">Compare</button>
+    <button class="primary" id="compare" title="Compare now (Ctrl/Cmd+Enter); also runs by itself as you type">Compare</button>
+    <button id="fold" title="Fold the text boxes so the result gets the screen (they fold by themselves when you work in the result)">Hide texts</button>
     <div class="seg" role="radiogroup" aria-label="View">
       <label><input type="radio" name="view" value="unified"> Unified</label>
       <label><input type="radio" name="view" value="split"> Side by side</label>
     </div>
+    <span class="nav">
+      <button id="prev" title="Previous change" aria-label="Previous change" disabled>▲</button>
+      <button id="next" title="Next change" aria-label="Next change" disabled>▼</button>
+      <span id="pos" hidden><input type="number" id="goto" min="1" placeholder="–" title="Go to change" aria-label="Go to change"> <span id="total"></span></span>
+    </span>
     <label class="check"><input type="checkbox" id="hideSame"> Hide unchanged</label>
+    <label class="check" title="Merge arrows on every changed line instead of one pair per change"><input type="checkbox" id="lineMerge"> Merge by line</label>
     <span id="summary" role="status"></span>
   </div>
 

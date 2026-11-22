@@ -134,6 +134,56 @@ t('collapse short edges kept', () => eq(shape(collapse(change(3, [2]))), 'edie')
 t('collapse no changes', () => eq(collapse(diffLines('a\nb', 'a\nb')), []));
 t('collapse empty', () => eq(collapse([]), []));
 t('collapse context param', () => eq(shape(collapse(change(9, [5]), 1)), 's3edies3'));
+t('collapse keep: kept rows stay with context', () => {
+  const rows = diffLines(lines(20), lines(20)), keep = r => r.oldNo === 10;
+  eq(shape(collapse(rows, 3, keep)), 's6eeeeeees7');
+  eq(collapse(rows, 3, keep).filter(r => r.type === 'equal')[3].oldNo, 10);
+});
+t('collapse keep: nothing kept, no changes → empty', () => eq(collapse(diffLines('a', 'a'), 3, () => false), []));
+t('collapse skip has start row index', () => {
+  const rows = change(20, [10]), out = collapse(rows);
+  eq(out.filter(r => r.type === 'skip').map(r => [r.start, r.count]), [[0, 6], [14, 7]]);
+});
+
+// ---- changeBlocks
+const { changeBlocks, spliceLines } = TextDiff;
+t('blocks replace + insert + delete', () => eq(changeBlocks(diffLines('a\nb\nc\nd', 'a\nB\nc\nx\nd\n')), [
+  { oldStart: 1, newStart: 1, oldLines: ['b'], newLines: ['B'] },
+  { oldStart: 3, newStart: 3, oldLines: [], newLines: ['x'] },
+]));
+t('blocks delete at end', () => eq(changeBlocks(diffLines('a\nb', 'a')), [{ oldStart: 1, newStart: 1, oldLines: ['b'], newLines: [] }]));
+t('blocks none', () => eq(changeBlocks(diffLines('a', 'a')), []));
+t('blocks keep real text under ignore options', () => eq(changeBlocks(diffLines('A  b\nx', 'a b\ny', { ignoreCase: true, ignoreWhitespace: true })),
+  [{ oldStart: 1, newStart: 1, oldLines: ['x'], newLines: ['y'] }]));
+
+// ---- spliceLines
+t('splice replace middle', () => eq(spliceLines('a\nb\nc\n', 1, 1, ['X']), 'a\nX\nc\n'));
+t('splice keeps CRLF', () => eq(spliceLines('a\r\nb\r\n', 1, 0, ['X']), 'a\r\nX\r\nb\r\n'));
+t('splice append, no final newline', () => eq(spliceLines('a\nb', 2, 0, ['c']), 'a\nb\nc'));
+t('splice append, final newline', () => eq(spliceLines('a\nb\n', 2, 0, ['c']), 'a\nb\nc\n'));
+t('splice delete last line', () => eq(spliceLines('a\nb', 1, 1, []), 'a'));
+t('splice delete first line', () => eq(spliceLines('a\nb\n', 0, 1, []), 'b\n'));
+t('splice delete all', () => eq(spliceLines('a\n', 0, 1, []), ''));
+t('splice into empty', () => eq(spliceLines('', 0, 0, ['a', 'b']), 'a\nb'));
+t('splice insert at start', () => eq(spliceLines('b', 0, 0, ['a']), 'a\nb'));
+t('splice keeps empty lines', () => eq(spliceLines('a\n\nc', 2, 1, ['']), 'a\n\n\n'));
+t('splice empty line into empty', () => eq(spliceLines('', 0, 0, ['']), '\n'));
+t('merge both ways makes texts equal (fuzz)', () => {
+  let seed = 7; const rnd = n => (seed = (seed * 1103515245 + 12345) % 2147483648) % n;
+  for (let k = 0; k < 300; k++) {
+    const mk = () => Array.from({ length: rnd(8) }, () => 'abc'[rnd(3)]).join(['\n', '\r\n'][rnd(2)]) + ['', '\n'][rnd(2)];
+    let a = mk(), b = mk();
+    const toB = rnd(2) === 1;
+    for (let guard = 0; guard < 20; guard++) {
+      const blocks = changeBlocks(diffLines(a, b));
+      if (!blocks.length) break;
+      const x = blocks[rnd(blocks.length)];
+      if (toB) b = spliceLines(b, x.newStart, x.newLines.length, x.oldLines);
+      else a = spliceLines(a, x.oldStart, x.oldLines.length, x.newLines);
+    }
+    eq(changeBlocks(diffLines(a, b)), []);
+  }
+});
 
 // performance smoke
 const timed = fn => { const s = Date.now(); fn(); return Date.now() - s; };

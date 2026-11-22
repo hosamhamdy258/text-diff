@@ -14,6 +14,7 @@
   --add-word: #a8dcb5;
   --del-word: #f5b5ae;
   --skip-bg: #eef1f6;
+  --hl: rgba(47, 111, 237, 0.22);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -33,6 +34,7 @@
     --add-word: #23633a;
     --del-word: #7a2c2c;
     --skip-bg: #232832;
+    --hl: rgba(79, 140, 255, 0.3);
   }
 }
 
@@ -181,6 +183,7 @@ main {
 }
 
 .pane {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -203,6 +206,34 @@ main {
 .bar strong {
   flex: 1;
   font-size: 13px;
+}
+
+.bar .info {
+  margin-left: 6px;
+  font-weight: normal;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* folded: each box shows only its toolbar */
+main.folded {
+  height: auto;
+  min-height: 0;
+}
+
+/* still focusable (not display: none): Sort / Clear / Open / merges edit it with insertText */
+main.folded textarea {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+main.folded .bar {
+  border-bottom: 0;
 }
 
 /* ---- controls */
@@ -328,8 +359,106 @@ main {
   overflow-wrap: anywhere;
 }
 
-.diff.split td.tx + td.no {
+.diff.split td.mg {
   border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+.diff.split .c-mg {
+  width: 150px;
+}
+
+/* merge arrows on the first row of each change */
+.diff .mg {
+  width: 1%;
+  padding: 0 2px;
+  text-align: center;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* ≥ 24px targets; in split view each arrow sits at the gutter edge next to the side it copies from */
+.mg-btns {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.diff .mg button {
+  min-width: 30px;
+  height: 24px;
+  padding: 0 6px;
+  line-height: 1;
+}
+
+.diff .mg svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* editing a line in the result */
+.diff .line-edit {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0 2px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  resize: none;
+  overflow: hidden;
+}
+
+.diff .tx[data-side] {
+  cursor: text;
+}
+
+.diff .mg .split-toggle {
+  height: 24px;
+  padding: 0 6px;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.diff .mg button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* lines written by the last merge, with its Undo button */
+.diff tr.merged td {
+  background-image: linear-gradient(var(--hl), var(--hl));
+}
+
+.diff .mg .undo {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.diff .mg .undo.compact {
+  min-width: 30px;
+  padding: 0 6px;
+  font-size: 15px;
+}
+
+/* merge preview: the lines an arrow would overwrite */
+.diff.unified tr.hl-new.add td,
+.diff.unified tr.hl-old.del td,
+.diff.split tr.hl-new td.mg ~ td,
+.diff.split tr.hl-old td:not(.mg, .mg ~ td) {
+  background-image: linear-gradient(var(--hl), var(--hl));
 }
 
 .diff .add {
@@ -350,13 +479,68 @@ main {
   border-radius: 2px;
 }
 
-.diff .skip td {
+.nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#pos {
+  margin-left: 4px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+#goto {
+  width: 4.5em;
+  padding: 4px 6px;
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.diff tr.cur td {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.more.top {
+  border-top: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.more {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
   background: var(--skip-bg);
   color: var(--muted);
-  text-align: center;
+  font-size: 13px;
+}
+
+.diff .skip td {
+  background: var(--skip-bg);
+  padding: 0;
+}
+
+.diff .skip button {
+  display: block;
+  width: 100%;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 12px;
-  padding: 2px 8px;
+}
+
+.diff .skip button:hover {
+  color: var(--accent);
 }
 
 /* ---- phone */
@@ -388,6 +572,11 @@ main {
   .pane {
     height: 32vh;
     min-height: 200px;
+  }
+
+  main.folded .pane {
+    height: auto;
+    min-height: 0;
   }
 
   .result {

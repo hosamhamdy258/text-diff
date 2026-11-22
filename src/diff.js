@@ -176,26 +176,65 @@ const TextDiff = (function () {
 
   // Keep `context` unchanged rows around each change; replace longer unchanged runs with
   // { type: 'skip', count }. No changes at all → [].
-  function collapse(rows, context = 3) {
-    if (!rows.some(r => r.type !== 'equal')) return [];
+  // keep(row) → true marks an equal row to show like a change (with context), e.g. just-merged lines.
+  function collapse(rows, context = 3, keep = () => false) {
+    const shown = r => r.type !== 'equal' || keep(r);
+    if (!rows.some(shown)) return [];
     const out = [];
     let r = 0;
     while (r < rows.length) {
-      if (rows[r].type !== 'equal') { out.push(rows[r++]); continue; }
+      if (shown(rows[r])) { out.push(rows[r++]); continue; }
       const start = r;
-      while (r < rows.length && rows[r].type === 'equal') r++;
+      while (r < rows.length && !shown(rows[r])) r++;
       const run = rows.slice(start, r);
       const keepBefore = start === 0 ? 0 : context;          // after a change
       const keepAfter = r === rows.length ? 0 : context;     // before a change
       if (run.length <= keepBefore + keepAfter) { out.push(...run); continue; }
       out.push(...run.slice(0, keepBefore));
-      out.push({ type: 'skip', count: run.length - keepBefore - keepAfter });
+      out.push({ type: 'skip', start: start + keepBefore, count: run.length - keepBefore - keepAfter });
       out.push(...run.slice(run.length - keepAfter));
     }
     return out;
   }
 
-  return { splitLines, sortLines, diffLines, tokenize, collapse };
+  // ---- merge
+
+  // Each change block (a run of removed/added rows): where it starts in each text (0-based line
+  // index) and its real lines on each side. Copying one side's lines over the other's merges it.
+  function changeBlocks(rows) {
+    const out = [];
+    let i = 0, j = 0, r = 0;
+    while (r < rows.length) {
+      if (rows[r].type === 'equal') { i++; j++; r++; continue; }
+      const b = { oldStart: i, newStart: j, oldLines: [], newLines: [] };
+      for (; r < rows.length && rows[r].type !== 'equal'; r++) {
+        if (rows[r].type === 'delete') { b.oldLines.push(rows[r].text); i++; } else { b.newLines.push(rows[r].text); j++; }
+      }
+      out.push(b);
+    }
+    return out;
+  }
+
+  // Replace `count` lines of `text` from line `start` with `lines`. Untouched lines keep their own
+  // endings; new lines use the text's first line ending (\n if none). A final line ending is kept
+  // only if the text had one.
+  function spliceLines(text, start, count, lines) {
+    const parts = text.split(/(\r\n|\n|\r)/);   // line, ending, line, ending, ..., line
+    const ls = [], ends = [];
+    for (let k = 0; k < parts.length; k += 2) { ls.push(parts[k]); ends.push(parts[k + 1] || ''); }
+    if (ls.length && ls[ls.length - 1] === '') { ls.pop(); ends.pop(); }   // text '' or ending in a newline
+    const finalEnd = ends.length ? ends[ends.length - 1] : '';
+    const eol = parts[1] || '\n';
+    ls.splice(start, count, ...lines);
+    ends.splice(start, count, ...lines.map(() => eol));
+    for (let k = 0; k < ends.length - 1; k++) if (!ends[k]) ends[k] = eol;   // old last line no longer last
+    // An empty last line only exists with an ending after it ('' + one empty line = '\n').
+    const last = ends.length - 1;
+    if (last >= 0) ends[last] = finalEnd || ls[last] === '' ? (ends[last] || eol) : '';
+    return ls.map((l, k) => l + ends[k]).join('');
+  }
+
+  return { splitLines, sortLines, diffLines, tokenize, collapse, changeBlocks, spliceLines };
 })();
 
 if (typeof module !== 'undefined') module.exports = TextDiff;
